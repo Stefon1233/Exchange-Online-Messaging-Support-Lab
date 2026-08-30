@@ -386,3 +386,398 @@ Brian Carter's missing Exchange Online mailbox was traced to a missing Microsoft
 After the license was assigned, Exchange Online successfully provisioned the mailbox.
 
 The final mailbox was independently verified through both the Exchange Admin Center and Exchange Online PowerShell and was confirmed to be a valid `UserMailbox`.
+---
+
+# Scenario 2 — Missing Exchange Online Service Entitlement
+
+## Overview
+
+This scenario demonstrates a Microsoft 365 licensing issue in which a user retains an assigned Microsoft 365 product license but loses access to Exchange Online because the Exchange-specific service plan inside that license is disabled.
+
+Unlike Scenario 1, where the user had no Microsoft 365 license at all, this scenario demonstrates why administrators must inspect individual service entitlements when troubleshooting application access.
+
+---
+
+## Incident Summary
+
+**User:** Emily Brown  
+**Service:** Exchange Online  
+**Issue:** Microsoft 365 Business Basic remained assigned, but Exchange Online (Plan 1) was disabled.
+
+Emily Brown initially had a working Exchange Online mailbox.
+
+After the Exchange Online service entitlement was disabled within Microsoft 365 Business Basic, the mailbox became unavailable through Exchange Admin Center and Exchange Online PowerShell.
+
+The incident was investigated and resolved using:
+
+- Microsoft 365 Admin Center
+- Exchange Admin Center
+- Exchange Online PowerShell
+
+---
+
+## Known-Good Baseline
+
+Before reproducing the incident, Emily Brown had a functioning Exchange Online mailbox.
+
+Exchange Admin Center displayed:
+
+- Display Name: Emily Brown
+- Primary SMTP Address: emily.brown@Stefon.onmicrosoft.com
+- Recipient Type: UserMailbox
+
+Microsoft 365 Admin Center showed:
+
+- Microsoft 365 Business Basic: Assigned
+- Exchange Online (Plan 1): Enabled
+
+This established a known-good baseline.
+
+---
+
+## Fault Simulation
+
+Microsoft 365 Business Basic remained assigned to Emily Brown.
+
+Under the Apps section of the license, only the following service was disabled:
+
+`Exchange Online (Plan 1)`
+
+The overall Microsoft 365 Business Basic product license was not removed.
+
+This created the following configuration:
+
+- Microsoft 365 Business Basic: Assigned
+- Exchange Online (Plan 1): Disabled
+
+---
+
+## Symptoms After Service Removal
+
+After Exchange Online (Plan 1) was disabled:
+
+- Emily Brown still appeared as licensed with Microsoft 365 Business Basic.
+- Exchange Online was no longer enabled for the account.
+- Emily Brown disappeared from Exchange Admin Center mailboxes.
+- Searching Exchange Admin Center returned `No results found`.
+- `Get-EXOMailbox` could not locate the mailbox.
+- `Get-Recipient` could not locate the Exchange recipient.
+
+This demonstrated that an assigned Microsoft 365 product license does not guarantee that all services within the product are enabled.
+
+---
+
+# Exchange Admin Center Investigation
+
+Exchange Admin Center was opened and the following location was reviewed:
+
+`Recipients > Mailboxes`
+
+A search was performed for:
+
+`Emily Brown`
+
+The result returned:
+
+`No results found`
+
+This confirmed that Emily Brown was no longer available as an active Exchange Online user mailbox after the Exchange service entitlement was disabled.
+
+---
+
+# PowerShell Diagnosis
+
+## Exchange Online Connection
+
+An Exchange Online PowerShell session was established using:
+
+`Connect-ExchangeOnline -ShowBanner:$false`
+
+---
+
+## Active Mailbox Lookup
+
+The following command was executed:
+
+`Get-EXOMailbox -Identity "emily.brown@Stefon.onmicrosoft.com" | Format-List DisplayName,PrimarySmtpAddress,RecipientTypeDetails`
+
+The command returned an object-not-found error.
+
+This demonstrated that Emily Brown could no longer be located as an active Exchange Online mailbox.
+
+---
+
+## Exchange Recipient Lookup
+
+The following command was executed:
+
+`Get-Recipient -Identity "emily.brown@Stefon.onmicrosoft.com" | Format-List DisplayName,PrimarySmtpAddress,RecipientType,RecipientTypeDetails`
+
+The command also returned an object-not-found result.
+
+This provided additional evidence that the user no longer had an active Exchange recipient available through the standard recipient lookup.
+
+---
+
+## Additional Mailbox State Investigation
+
+An additional mailbox-state check was attempted during troubleshooting.
+
+The investigation reinforced that mailbox and recipient visibility can change after Exchange Online licensing or service entitlement changes.
+
+The primary diagnostic evidence used for this scenario was:
+
+- Microsoft 365 service-plan configuration
+- Exchange Admin Center mailbox visibility
+- `Get-EXOMailbox`
+- `Get-Recipient`
+
+---
+
+# Root Cause
+
+The root cause was a disabled Exchange Online service entitlement.
+
+Emily Brown still had:
+
+`Microsoft 365 Business Basic`
+
+assigned.
+
+However, the individual service:
+
+`Exchange Online (Plan 1)`
+
+was disabled within the license.
+
+As a result, Exchange Online access and the active mailbox became unavailable even though the user still appeared to have Microsoft 365 Business Basic assigned.
+
+---
+
+# Remediation
+
+The Microsoft 365 Business Basic license remained assigned.
+
+The following path was used:
+
+`Microsoft 365 Admin Center > Users > Active users > Emily Brown > Licenses and apps`
+
+Under the Microsoft 365 Business Basic Apps configuration, the following service was re-enabled:
+
+`Exchange Online (Plan 1)`
+
+The updated license configuration was saved.
+
+---
+
+# Exchange Admin Center Recovery Verification
+
+After Exchange Online (Plan 1) was restored, Exchange Admin Center was refreshed.
+
+Navigation:
+
+`Recipients > Mailboxes`
+
+Emily Brown returned successfully.
+
+The mailbox displayed:
+
+- Display Name: Emily Brown
+- Email Address: emily.brown@Stefon.onmicrosoft.com
+- Recipient Type: UserMailbox
+
+This confirmed that Exchange Online service restoration had completed.
+
+---
+
+# PowerShell Recovery Verification
+
+Emily Brown's mailbox was queried again using:
+
+`Get-EXOMailbox -Identity "emily.brown@Stefon.onmicrosoft.com" | Format-List DisplayName,PrimarySmtpAddress,RecipientTypeDetails`
+
+The command returned:
+
+`DisplayName          : Emily Brown`
+
+`PrimarySmtpAddress   : emily.brown@Stefon.onmicrosoft.com`
+
+`RecipientTypeDetails : UserMailbox`
+
+This independently confirmed successful recovery.
+
+---
+
+# Resolution
+
+The incident was resolved by re-enabling:
+
+`Exchange Online (Plan 1)`
+
+within Emily Brown's existing Microsoft 365 Business Basic license.
+
+No new Microsoft 365 product license was required.
+
+After the service entitlement was restored:
+
+1. Emily Brown returned to Exchange Admin Center.
+2. The recipient type returned as `UserMailbox`.
+3. Exchange Online PowerShell successfully located the mailbox.
+4. The primary SMTP address was verified.
+5. Normal Exchange Online mailbox availability was restored.
+
+---
+
+# Troubleshooting Workflow
+
+The troubleshooting process for this incident was:
+
+1. Establish a working Exchange Online mailbox baseline.
+2. Confirm Microsoft 365 Business Basic was assigned.
+3. Verify Exchange Online (Plan 1) was enabled.
+4. Disable only Exchange Online (Plan 1).
+5. Leave Microsoft 365 Business Basic assigned.
+6. Verify the product license still appeared assigned.
+7. Search for the mailbox in Exchange Admin Center.
+8. Confirm that the mailbox was unavailable.
+9. Connect to Exchange Online PowerShell.
+10. Query the mailbox with `Get-EXOMailbox`.
+11. Query the recipient with `Get-Recipient`.
+12. Identify the missing Exchange service entitlement.
+13. Re-enable Exchange Online (Plan 1).
+14. Refresh Exchange Admin Center.
+15. Verify the mailbox returned.
+16. Query the mailbox again through PowerShell.
+17. Confirm `RecipientTypeDetails` returned `UserMailbox`.
+18. Document the incident and resolution.
+
+---
+
+# Comparison With Scenario 1
+
+## Scenario 1
+
+Brian Carter had:
+
+- No Microsoft 365 Business Basic license
+- No Exchange Online entitlement
+- No Exchange Online mailbox
+
+Resolution:
+
+`Assign Microsoft 365 Business Basic`
+
+## Scenario 2
+
+Emily Brown had:
+
+- Microsoft 365 Business Basic assigned
+- Exchange Online (Plan 1) disabled
+- Exchange mailbox unavailable
+
+Resolution:
+
+`Re-enable Exchange Online (Plan 1) within the existing license`
+
+---
+
+# Key Troubleshooting Lesson
+
+Microsoft 365 licensing should be investigated at two levels:
+
+## Product License
+
+Example:
+
+`Microsoft 365 Business Basic`
+
+## Individual Service Plans
+
+Example:
+
+`Exchange Online (Plan 1)`
+
+A user can appear licensed at the Microsoft 365 product level while still being unable to access a particular Microsoft 365 service.
+
+For Exchange Online incidents, administrators should verify both:
+
+- The appropriate Microsoft 365 product license is assigned.
+- The Exchange Online service plan within that license is enabled.
+
+This helps distinguish licensing and cloud-service issues from:
+
+- Outlook client problems
+- Password issues
+- Authentication failures
+- Local workstation problems
+- Mail profile corruption
+
+---
+
+# Commands Used
+
+## Connect to Exchange Online
+
+`Connect-ExchangeOnline -ShowBanner:$false`
+
+## Check Mailbox During Failure
+
+`Get-EXOMailbox -Identity "emily.brown@Stefon.onmicrosoft.com" | Format-List DisplayName,PrimarySmtpAddress,RecipientTypeDetails`
+
+## Check Recipient During Failure
+
+`Get-Recipient -Identity "emily.brown@Stefon.onmicrosoft.com" | Format-List DisplayName,PrimarySmtpAddress,RecipientType,RecipientTypeDetails`
+
+## Verify Mailbox After Recovery
+
+`Get-EXOMailbox -Identity "emily.brown@Stefon.onmicrosoft.com" | Format-List DisplayName,PrimarySmtpAddress,RecipientTypeDetails`
+
+---
+
+# Screenshot Evidence
+
+Supporting evidence is stored under:
+
+`Screenshots/02-Mailboxes/`
+
+Scenario 2 evidence includes:
+
+- `06-Emily-Brown-Mailbox-Baseline.png`
+- `07-Emily-Brown-Exchange-Enabled.png`
+- `08-Emily-Brown-Exchange-Disabled.png`
+- `09-Emily-Brown-Mailbox-Missing-After-Exchange-Disabled.png`
+- `10-Emily-Brown-PowerShell-Missing-Mailbox-Diagnosis.png`
+- `11-Emily-Brown-Exchange-Reenabled.png`
+- `12-Emily-Brown-Mailbox-Restored.png`
+- `13-Emily-Brown-PowerShell-Recovery-Verification.png`
+
+---
+
+# Skills Demonstrated
+
+- Exchange Online Administration
+- Microsoft 365 Administration
+- Microsoft 365 Licensing
+- Microsoft 365 Service Plans
+- Exchange Online Service Entitlements
+- Exchange Admin Center
+- Exchange Online PowerShell
+- Recipient Troubleshooting
+- Mailbox Recovery
+- Root Cause Analysis
+- Service Restoration
+- Resolution Verification
+- Incident Management
+- Technical Documentation
+
+---
+
+# Scenario Outcome
+
+**Status: Resolved**
+
+Emily Brown retained Microsoft 365 Business Basic but lost Exchange Online functionality because Exchange Online (Plan 1) was disabled within the assigned license.
+
+The Exchange Online service entitlement was re-enabled.
+
+Exchange Admin Center and Exchange Online PowerShell independently verified that Emily Brown's mailbox returned successfully as a valid `UserMailbox`.
